@@ -30,12 +30,11 @@ public class Sistema
     }
 
     public boolean localizarCliente() {
-        Entrada d = Sistema.gi().dados;
-        if (d == null || (d.contato == null && d.chatId == null)) {
+        if (dados == null || (dados.contato == null && dados.chatId == null)) {
             return false;
         }
         
-        if (d.chatId != null && banco.clientes.containsKey(d.chatId)) {
+        if (dados.chatId != null && banco.clientes.containsKey(dados.chatId)) {
             return true;
         }
         return false;
@@ -44,69 +43,73 @@ public class Sistema
     public void addCliente() {
         Cliente c = new Cliente();
 
-        c.nome = (Sistema.gi().dados.nome != null) ? Sistema.gi().dados.nome : "Desconhecido";
-        c.contato = Sistema.gi().dados.contato;
-        c.chatId = Sistema.gi().dados.chatId;
+        c.nome = (dados.nome != null) ? dados.nome : "Desconhecido";
+        c.contato = dados.contato;
+        c.chatId = dados.chatId;
 
         System.out.println(c.nome + " " + c.contato + " " + c.chatId);
 
-        Sistema.gi().banco.clientes.put(c.chatId, c);
+        banco.clientes.put(c.chatId, c);
 
-        Sistema.gi().banco.db.commit();
+        banco.db.commit();
         System.out.println("Cliente adicionado.");
     }
 
     public static void main( String[] args )
     {
-        do {
+        Sistema s = gi();
+        
+        while(true) {
             try {
-                Sistema.gi().leitor.ler();
+                s.leitor.ler();
 
-                Thread.sleep(500);
-            } catch (InterruptedException e) {
+                if (!s.dados.lido) {
+                    break;
+                }
+            } catch (Exception e) {
                 e.printStackTrace();
             }
-        }while(Sistema.gi().dados.lido==true);
+        }
 
-        Sistema.gi().banco.abrir();
+        s.banco.abrir();
 
-        if(Sistema.gi().localizarCliente()) {
+        if(s.localizarCliente()) {
             System.out.println("Cliente Reconhecido.");
         } else {
             System.out.println("Cliente Desconhecido");
-            Sistema.gi().addCliente();
+            s.addCliente();
         }
 
-        Sistema.gi().dados.calcularDataHorario();
+        s.dados.calcularDataHorario();
         
-        switch (Sistema.gi().dados.acao) {
+        switch (s.dados.acao) {
             case 1:
                 System.out.println("Fazer Agendamento");
-                Sistema.gi().agenda.criarSessao();
+                s.agenda.criarSessao();
                 break;
             case 2:
                 System.out.println("Cancelar Agendamento");
-                Sistema.gi().agenda.cancelarSessao();
+                s.agenda.cancelarSessao();
                 break;
             case 3:
                 System.out.println("Consultar Agendamento");
-                Sistema.gi().agenda.statusSessao();
+                s.agenda.statusSessao();
                 break;
             case 4:
                 System.out.println("Confirmar Agendamento");
-                Sistema.gi().agenda.confirmar();
+                s.agenda.confirmar();
                 break;
             case 444:
                 System.out.println("Criar log de banco");
-                Sistema.gi().impressora.imprimirBanco();
+                s.impressora.imprimirBanco();
                 break;
         }
 
-        Sistema.gi().leitor.reescrever();
+        s.leitor.reescrever();
 
-        Sistema.gi().banco.db.close();
+        s.banco.db.close();
         
-        Sistema.gi().main(null);
+        main(null);
     }
 }
 

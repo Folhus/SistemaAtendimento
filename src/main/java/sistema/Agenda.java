@@ -56,7 +56,7 @@ public class Agenda {
     }
 
     public void statusSessao() {
-        //entrega os elementos equivalente a sessão desejada
+        //entrega os elem   s equivalente a sessão desejada
     }
     
     public void confirmar() {
