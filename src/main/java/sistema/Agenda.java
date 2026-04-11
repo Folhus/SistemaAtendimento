@@ -43,6 +43,7 @@ public class Agenda {
             Sistema.gi().banco.sessoes.remove(Sistema.gi().dados.dataHorario);
             Cliente cliente = Sistema.gi().banco.clientes.get(Sistema.gi().dados.chatId);
             if (cliente != null && cliente.sessoes != null && sessao != null) {
+                cliente.sessoes.remove(Integer.valueOf(sessao.dataHorario));
                 Sistema.gi().banco.clientes.put(cliente.chatId, cliente);
             }
 
