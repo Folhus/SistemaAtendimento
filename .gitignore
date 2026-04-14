@@ -96,3 +96,6 @@ secrets.properties
 # ============================================================
 *.log
 spring.log
+
+
+application.properties
