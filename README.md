@@ -256,6 +256,13 @@ mvn spring-boot:run
 
 ---
 
+## Autor
+
+Desenvolvido originalmente como projeto acadêmico de Laboratório de Programação Orientada a Objetos na Universidade Estudual do Rio Grande do Norte (UERN) pelo estudante Wilton Carlos J. da C. Filho. Desde então, repaginado para comportar uso profissional. Segue link do GitHub:
+https://github.com/Folhus
+
+---
+
 ## Licença
 
 Uso privado. Todos os direitos reservados.
