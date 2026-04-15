@@ -1,85 +1,131 @@
 package sistema;
 
+import java.util.List;
+import java.util.Optional;
+import java.util.stream.Collectors;
+
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+
+@Service
 public class Agenda {
 
-    public void criarSessao() {
+    private final SessaoRepository sessaoRepo;
+    private final ClienteRepository clienteRepo;
 
-        if (vago() == false) {
-            Sistema.gi().leitor.saida("Data indisponivel");
-            System.out.println("Data indisponivel");
-            return;
+    // O Spring injeta os repositórios automaticamente (injeção por construtor)
+    public Agenda(SessaoRepository sessaoRepo, ClienteRepository clienteRepo) {
+        this.sessaoRepo = sessaoRepo;
+        this.clienteRepo = clienteRepo;
+    }
+
+
+    @Transactional
+    public Saida criarSessao(Entrada dados) {
+        if (!vago(dados.dataHorario)) {
+            return Saida.erro("Data indisponivel: ja existe uma sessao proxima a esse horario");
         }
+
+        Optional<Cliente> clienteOpt = clienteRepo.findByChatId(dados.chatId);
+        if (clienteOpt.isEmpty()) {
+            return Saida.erro("Cliente nao encontrado");
+        }
+
         Sessao sessao = new Sessao();
+        sessao.dataHorario  = dados.dataHorario;
+        sessao.procedimento = dados.procedimento;
+        sessao.cidade       = dados.cidade;
+        sessao.cliente      = clienteOpt.get();
+        sessao.confirmado   = false;
+        sessao.completo     = false;
 
-        sessao.dataHorario = Sistema.gi().dados.dataHorario;
-        sessao.procedimento = Sistema.gi().dados.procedimento;
-        sessao.cidade = Sistema.gi().dados.cidade;
-        sessao.completo = false;
-        sessao.confirmado = false;
+        sessaoRepo.save(sessao);
 
-        Cliente cliente = Sistema.gi().banco.clientes.get(Sistema.gi().dados.chatId);
+        Saida saida = Saida.ok("Sessao criada com sucesso");
+        saida.sessao = Saida.SessaoDTO.de(sessao);
+        return saida;
+    }
 
-        if (cliente == null) {
-            Sistema.gi().leitor.saida("Erro: cliente nao encontrado para criar sessao");
-            System.out.println("Erro: cliente nao encontrado para criar sessao");
-            return;
+
+    @Transactional
+    public Saida cancelarSessao(Entrada dados) {
+        Optional<Sessao> sessaoOpt = sessaoRepo.findByDataHorario(dados.dataHorario);
+
+        if (sessaoOpt.isEmpty()) {
+            return Saida.erro("Sessao nao encontrada");
         }
 
-            if (cliente.sessoes == null) {
-                cliente.sessoes = new java.util.ArrayList<>();
-            }
-            cliente.sessoes.add(sessao.dataHorario);
+        Sessao sessao = sessaoOpt.get();
 
-        Sistema.gi().banco.sessoes.put(sessao.dataHorario, sessao);
-
-        Sistema.gi().banco.db.commit();
-        Sistema.gi().leitor.saida("Sessao criada com sucesso");
-        System.out.println("Sessao criada com sucesso");
-    }
-
-    public void cancelarSessao() {
-        if(Sistema.gi().banco.sessoes.containsKey(Sistema.gi().dados.dataHorario)) {
-            Sessao sessao = Sistema.gi().banco.sessoes.get(Sistema.gi().dados.dataHorario);
-            Sistema.gi().banco.sessoes.remove(Sistema.gi().dados.dataHorario);
-            Cliente cliente = Sistema.gi().banco.clientes.get(Sistema.gi().dados.chatId);
-            if (cliente != null && cliente.sessoes != null && sessao != null) {
-                cliente.sessoes.remove(Integer.valueOf(sessao.dataHorario));
-                Sistema.gi().banco.clientes.put(cliente.chatId, cliente);
-            }
-
-            Sistema.gi().banco.db.commit();
-            Sistema.gi().leitor.saida("Sessao cancelada com sucesso");
-            System.out.println("Sessao cancelada com sucesso");
-        } else {
-            Sistema.gi().leitor.saida("Sessao nao encontrada");
-            System.out.println("Sessao nao encontrada");
+        if (!sessao.cliente.chatId.equals(dados.chatId)) {
+            return Saida.erro("Esta sessao nao pertence ao cliente informado");
         }
+
+        sessaoRepo.delete(sessao);
+
+        return Saida.ok("Sessao cancelada com sucesso");
     }
 
-    public void statusSessao() {
-        //entrega os elem   s equivalente a sessão desejada
-    }
-    
-    public void confirmar() {
-        //altera o status da sessão desejada para confirmado
-    }
 
-    private boolean vago() {
-        int i;
-        for (i = -20; vagoRepete(i) == true && i < 20; i++);
+    @Transactional(readOnly = true)
+    public Saida statusSessao(long dataHorario) {
+        Optional<Sessao> sessaoOpt = sessaoRepo.findByDataHorario(dataHorario);
 
-        if (i == 20) {
-            return true;
+        if (sessaoOpt.isEmpty()) {
+            return Saida.erro("Sessao nao encontrada");
         }
-        return false;
+
+        Saida saida = Saida.ok("Ok");
+        saida.sessao = Saida.SessaoDTO.de(sessaoOpt.get());
+        return saida;
     }
 
-    private boolean vagoRepete(int i) {
-        int aux = Sistema.gi().dados.dataHorario + i;
-        if (Sistema.gi().banco.sessoes.containsKey(aux) == false) {
-            return true;
+
+    @Transactional(readOnly = true)
+    public List<Saida.SessaoDTO> listarSessoes(String chatId) {
+        return sessaoRepo.findByClienteChatId(chatId)
+                .stream()
+                .map(Saida.SessaoDTO::de)
+                .collect(Collectors.toList());
+    }
+
+
+    @Transactional
+    public Saida confirmar(Entrada dados) {
+        Optional<Sessao> sessaoOpt = sessaoRepo.findByDataHorario(dados.dataHorario);
+
+        if (sessaoOpt.isEmpty()) {
+            return Saida.erro("Sessao nao encontrada");
         }
-        return false;
+
+        Sessao sessao = sessaoOpt.get();
+        sessao.confirmado = true;
+        sessaoRepo.save(sessao);
+
+        Saida saida = Saida.ok("Presenca confirmada com sucesso");
+        saida.sessao = Saida.SessaoDTO.de(sessao);
+        return saida;
     }
 
+
+    @Transactional
+    public Saida concluir(Long sessaoId) {
+        Optional<Sessao> sessaoOpt = sessaoRepo.findById(sessaoId);
+
+        if (sessaoOpt.isEmpty()) {
+            return Saida.erro("Sessao nao encontrada");
+        }
+
+        Sessao sessao = sessaoOpt.get();
+        sessao.completo = true;
+        sessaoRepo.save(sessao);
+
+        return Saida.ok("Sessao marcada como concluida");
+    }
+
+
+    private boolean vago(long dataHorario) {
+        return !sessaoRepo.existeConflito(dataHorario - 20, dataHorario + 20);
+    }
 }

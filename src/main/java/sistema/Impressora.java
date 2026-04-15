@@ -1,56 +1,79 @@
 package sistema;
 
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
 import java.io.FileWriter;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.LocalDateTime;
-import java.util.Map;
+import java.time.format.DateTimeFormatter;
+import java.util.List;
 
+
+@Service
 public class Impressora {
 
+    private final ClienteRepository clienteRepo;
+    private final SessaoRepository sessaoRepo;
+
+    public Impressora(ClienteRepository clienteRepo, SessaoRepository sessaoRepo) {
+        this.clienteRepo = clienteRepo;
+        this.sessaoRepo = sessaoRepo;
+    }
+
+    @Transactional(readOnly = true)
     public void imprimirBanco() {
+        try {
+            Path logsDir = Path.of("logs");
+            Files.createDirectories(logsDir);
 
-        java.io.File logsDir = new java.io.File("logs");
-        if (!logsDir.exists()) {
-            logsDir.mkdirs();
-        }
+            String nomeArquivo = "logs/banco_"
+                    + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd_HH-mm-ss"))
+                    + ".txt";
 
-        try (FileWriter writer = new FileWriter("logs/banco" + LocalDateTime.now().toString().replace(":", "-") + ".txt")) {
-            writer.write("Clientes:\n");
-            for (Map.Entry<String, Cliente> entry : Sistema.gi().banco.clientes.entrySet()) {
-                Cliente cliente = entry.getValue();
-                if (cliente == null) continue;
+            try (FileWriter writer = new FileWriter(nomeArquivo)) {
+                writer.write("=== RELATÓRIO DO BANCO ===\n");
+                writer.write("Gerado em: " + LocalDateTime.now() + "\n\n");
 
-                writer.write("  " + (cliente.nome != null ? cliente.nome : "(sem nome)") + " {\n  " + (cliente.contato != null ? cliente.contato : "") + "\n");
-                writer.write("  Sessoes:\n");
+                List<Cliente> clientes = clienteRepo.findAll();
+                writer.write("Total de clientes: " + clientes.size() + "\n\n");
 
-                if (cliente.sessoes == null || cliente.sessoes.isEmpty()) {
-                    writer.write("    (nenhuma sessao)\n");
-                } else {
-                    for (int i = 0; cliente.sessoes.get(i)!=null; i++) {
-                        Sessao sessao = Sistema.gi().banco.sessoes.get(cliente.sessoes.get(i));
+                for (Cliente cliente : clientes) {
+                    writer.write("Cliente: " + cliente.nome + "\n");
+                    writer.write("  Contato : " + cliente.contato + "\n");
+                    writer.write("  ChatId  : " + cliente.chatId + "\n");
+                    writer.write("  Sessoes :\n");
 
-                        writer.write("  " + formatarDataHorario(sessao.dataHorario) + " {\n   " +
-                                (sessao.procedimento != null ? sessao.procedimento : "") + "\n    " + sessao.completo + "\n    "
-                                + sessao.confirmado + "\n    " + (sessao.cidade != null ? sessao.cidade : "") + "\n");
-                        writer.write("  }\n");
+                    List<Sessao> sessoes = sessaoRepo.findByClienteChatId(cliente.chatId);
+
+                    if (sessoes.isEmpty()) {
+                        writer.write("    (nenhuma sessao)\n");
+                    } else {
+                        for (Sessao sessao : sessoes) {
+                            writer.write("    - " + formatarDataHorario(sessao.dataHorario) + "\n");
+                            writer.write("      Procedimento : " + sessao.procedimento + "\n");
+                            writer.write("      Cidade       : " + sessao.cidade + "\n");
+                            writer.write("      Confirmado   : " + sessao.confirmado + "\n");
+                            writer.write("      Completo     : " + sessao.completo + "\n");
+                        }
                     }
+                    writer.write("\n");
                 }
-
-                writer.write("}\n");
             }
+
+            System.out.println("Log gerado: " + nomeArquivo);
+
         } catch (IOException e) {
-            e.printStackTrace();
+            System.err.println("Erro ao gerar log: " + e.getMessage());
         }
     }
 
-    private String formatarDataHorario(int dataHorario) {
-        String dataHorarioStr = String.valueOf(dataHorario);
-        String ano = dataHorarioStr.substring(0, 4);
-        String mes = dataHorarioStr.substring(4, 6);
-        String dia = dataHorarioStr.substring(6, 8);
-        String hora = dataHorarioStr.substring(8, 10);
-        String minuto = dataHorarioStr.substring(10, 12);
-        return dia + "/" + mes + "/" + ano + " " + hora + ":" + minuto;
+    private String formatarDataHorario(long dataHorario) {
+        String s = String.valueOf(dataHorario);
+        if (s.length() < 12) return s;
+        return s.substring(6, 8) + "/" + s.substring(4, 6) + "/" + s.substring(0, 4)
+                + " " + s.substring(8, 10) + ":" + s.substring(10, 12);
     }
-
 }
